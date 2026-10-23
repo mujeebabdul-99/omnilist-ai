@@ -1,0 +1,118 @@
+// OmniList AI — Prisma Schema
+// Decoupled architecture: Product (core entity) → MarketplaceListing (channel variant)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?   @db.Text
+
+  // eBay OAuth tokens
+  ebayToken     String?   @db.Text
+  ebayRefresh   String?   @db.Text
+  ebayTokenExp  DateTime?
+
+  // Shopify tokens
+  shopifyToken  String?   @db.Text
+  shopifyDomain String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  products      Product[]
+  jobs          Job[]
+
+  @@map("users")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  upc         String   @unique
+  title       String               // Raw catalog title
+  description String?  @db.Text    // Raw catalog description
+  brand       String?
+  images      Json                 // Array of image URLs
+  baseCost    Decimal  @db.Decimal(10, 2)
+  weight      Decimal? @db.Decimal(10, 2)
+  category    String?              // Universal category
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  listings    MarketplaceListing[]
+
+  @@index([userId])
+  @@index([upc])
+  @@map("products")
+}
+
+model MarketplaceListing {
+  id             String   @id @default(cuid())
+  platform       String               // "EBAY" | "SHOPIFY"
+  status         String   @default("DRAFT") // DRAFT | QUEUED | LIVE | ERROR | ENDED
+
+  // AI-optimized content
+  seoTitle       String   @db.VarChar(255)
+  seoDescription String   @db.Text
+  price          Decimal  @db.Decimal(10, 2)
+  condition      String?              // "New" | "Used - Like New" | "Used - Good" | etc.
+
+  // Platform-specific mapping
+  categoryId     String?              // eBay category ID / Shopify collection ID
+  itemSpecifics  Json?                // Platform-specific attributes (brand, MPN, etc.)
+
+  // External references
+  platformItemId String?              // eBay listing ID / Shopify product ID after push
+  platformUrl    String?  @db.Text    // Live URL on marketplace
+
+  // AI metadata
+  aiScore        Int?                 // SEO quality score 0-100
+  aiTone         String?              // "professional" | "casual" | "vintage" etc.
+
+  errorMessage   String?  @db.Text
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([platform, status])
+  @@map("marketplace_listings")
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  type        String                // "LISTING_PUSH" | "AI_REWRITE" | "PRICE_UPDATE" | "BULK_IMPORT"
+  status      String    @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED | CANCELLED
+  priority    Int       @default(0)  // Higher = processed first
+  payload     Json                  // Full listing data / operation params
+  result      Json?                 // API response on completion
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  errorLog    String?   @db.Text
+
+  scheduledAt DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@index([userId])
+  @@map("jobs")
+}
