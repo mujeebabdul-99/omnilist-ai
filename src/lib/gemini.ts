@@ -60,10 +60,12 @@ export interface OptimizeListingOutput {
 // Ordered: fastest/cheapest first → more capable fallbacks
 const MODEL_FALLBACK_CHAIN = [
   "gemini-2.5-flash",        // fast, cheap, great for structured output
+  "gemini-2.5-flash-lite",   // lightest/fastest variant
   "gemini-flash-latest",     // alias for latest flash
-  "gemini-2.5-flash-lite",   // even lighter/faster
+  "gemini-flash-lite-latest",// lite alias
   "gemini-pro-latest",       // pro-level fallback
   "gemini-2.5-pro",          // most capable, slowest
+  "gemini-3-flash-preview",  // next-gen preview
 ];
 
 export async function optimizeListing(
@@ -115,12 +117,16 @@ Generate an optimized ${input.platform} listing now. Return only the JSON object
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Only fall through to next model on 404 / not-found errors
+      // Fall through to next model on: not found OR overloaded/unavailable
       if (
         msg.includes("not found") ||
         msg.includes("404") ||
         msg.includes("NOT_FOUND") ||
-        msg.includes("not supported")
+        msg.includes("not supported") ||
+        msg.includes("503") ||
+        msg.includes("UNAVAILABLE") ||
+        msg.includes("high demand") ||
+        msg.includes("overloaded")
       ) {
         console.warn(`[Gemini] Model ${model} unavailable, trying next…`);
         lastError = err instanceof Error ? err : new Error(msg);
