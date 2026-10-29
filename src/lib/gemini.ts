@@ -56,15 +56,14 @@ export interface OptimizeListingOutput {
   keywordsUsed: string[];
 }
 
-// Priority order — newest/fastest first, fallback to older stable models
+// Verified available models for this API key (from ListModels API call)
+// Ordered: fastest/cheapest first → more capable fallbacks
 const MODEL_FALLBACK_CHAIN = [
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-1.5-flash-latest",
-  "gemini-1.5-flash",
-  "gemini-1.5-pro-latest",
-  "gemini-pro",
+  "gemini-2.5-flash",        // fast, cheap, great for structured output
+  "gemini-flash-latest",     // alias for latest flash
+  "gemini-2.5-flash-lite",   // even lighter/faster
+  "gemini-pro-latest",       // pro-level fallback
+  "gemini-2.5-pro",          // most capable, slowest
 ];
 
 export async function optimizeListing(
