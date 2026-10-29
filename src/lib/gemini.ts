@@ -56,6 +56,17 @@ export interface OptimizeListingOutput {
   keywordsUsed: string[];
 }
 
+// Priority order — newest/fastest first, fallback to older stable models
+const MODEL_FALLBACK_CHAIN = [
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-1.5-flash-latest",
+  "gemini-1.5-flash",
+  "gemini-1.5-pro-latest",
+  "gemini-pro",
+];
+
 export async function optimizeListing(
   input: OptimizeListingInput
 ): Promise<OptimizeListingOutput> {
@@ -79,21 +90,49 @@ Product data:
 Generate an optimized ${input.platform} listing now. Return only the JSON object.`;
 
   const ai = getAiClient();
-  const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
-    contents: userMessage,
-    config: {
-      systemInstruction: LISTING_SYSTEM_PROMPT,
-      responseMimeType: "application/json",
-      temperature: 0.4,
-    },
-  });
+  let lastError: Error | null = null;
 
-  const text = response.text ?? "";
+  for (const model of MODEL_FALLBACK_CHAIN) {
+    try {
+      console.log(`[Gemini] Trying model: ${model}`);
+      const response = await ai.models.generateContent({
+        model,
+        contents: userMessage,
+        config: {
+          systemInstruction: LISTING_SYSTEM_PROMPT,
+          responseMimeType: "application/json",
+          temperature: 0.4,
+        },
+      });
 
-  try {
-    return JSON.parse(text) as OptimizeListingOutput;
-  } catch {
-    throw new Error(`Gemini returned invalid JSON: ${text.slice(0, 200)}`);
+      const text = response.text ?? "";
+
+      try {
+        const result = JSON.parse(text) as OptimizeListingOutput;
+        console.log(`[Gemini] ✓ Success with model: ${model}`);
+        return result;
+      } catch {
+        throw new Error(`Model ${model} returned invalid JSON: ${text.slice(0, 200)}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Only fall through to next model on 404 / not-found errors
+      if (
+        msg.includes("not found") ||
+        msg.includes("404") ||
+        msg.includes("NOT_FOUND") ||
+        msg.includes("not supported")
+      ) {
+        console.warn(`[Gemini] Model ${model} unavailable, trying next…`);
+        lastError = err instanceof Error ? err : new Error(msg);
+        continue;
+      }
+      // Any other error (auth, rate limit, bad JSON) — throw immediately
+      throw err;
+    }
   }
+
+  throw new Error(
+    `All Gemini models exhausted. Last error: ${lastError?.message ?? "Unknown"}`
+  );
 }
