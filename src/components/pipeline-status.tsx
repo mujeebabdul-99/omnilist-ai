@@ -4,7 +4,6 @@ import {
   Clock,
   AlertTriangle,
   Loader2,
-  ArrowRight,
 } from "lucide-react";
 
 interface PipelineStep {

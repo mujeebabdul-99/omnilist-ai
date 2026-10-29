@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
-  TrendingUp, DollarSign, Tag, Eye,
-  ShoppingBag, Store, Sparkles, BarChart2,
-  ArrowUpRight, ArrowDownRight, Calendar,
+  DollarSign, Tag, Eye,
+  Sparkles, ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
 
 /* ─── Mock Data ─── */

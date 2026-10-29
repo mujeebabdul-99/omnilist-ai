@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import {
-  Link as LinkIcon, Sparkles, User, Bell, Shield,
-  Check, ExternalLink, AlertCircle, ChevronRight,
-  ShoppingBag, Store, Package, Zap, Key,
+  Link as LinkIcon, Sparkles, User, Bell,
+  Check, ExternalLink, AlertCircle,
+  Zap,
 } from "lucide-react";
 
 /* ─── Types ─── */

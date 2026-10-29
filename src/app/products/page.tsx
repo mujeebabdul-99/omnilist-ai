@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import {
   Plus, Search, Filter, Package, Tag, ShoppingBag,
   Store, MoreHorizontal, Pencil, Trash2, ExternalLink,
-  ChevronDown, Grid3x3, List, Sparkles, X,
+  Grid3x3, List, Sparkles, X,
 } from "lucide-react";
 
 /* ─── Types ─── */

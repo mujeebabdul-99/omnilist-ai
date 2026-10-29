@@ -2,11 +2,11 @@
 
 import { useState, useMemo } from "react";
 import {
-  Search, Filter, Tag, ShoppingBag, Store,
+  Search,
   MoreHorizontal, ExternalLink, RefreshCw, Trash2,
   TrendingUp, Eye, Edit3, CheckCircle, Clock,
-  XCircle, AlertCircle, Zap, ChevronDown, ArrowUpDown,
-  Package, BarChart2,
+  XCircle, AlertCircle, Zap, ArrowUpDown,
+  Package, ShoppingBag, Store,
 } from "lucide-react";
 
 /* ─── Types ─── */

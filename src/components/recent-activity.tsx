@@ -55,7 +55,7 @@ export function RecentActivity() {
         />
 
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          {activities.map((item, i) => {
+          {activities.map((item) => {
             const Icon = item.icon;
             return (
               <div
