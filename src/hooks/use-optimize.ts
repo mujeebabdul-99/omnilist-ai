@@ -1,7 +1,8 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useState, useCallback } from "react";
 import { useDraftStore, type Platform } from "@/stores/draft-store";
+import { findDemoListing } from "@/lib/demo-listings";
 import { nanoid } from "nanoid";
 
 interface OptimizePayload {
@@ -41,32 +42,59 @@ async function callOptimizeApi(payload: OptimizePayload): Promise<OptimizeResult
 
 export function useOptimize() {
   const addDraft = useDraftStore((s) => s.addDraft);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  const mutation = useMutation({
-    mutationFn: callOptimizeApi,
-    onSuccess: (result, variables) => {
-      addDraft({
-        id: nanoid(),
-        platform: variables.platform,
-        seoTitle: result.seoTitle,
-        seoDescription: result.seoDescription,
-        price: result.suggestedPrice,
-        condition: result.condition,
-        categoryId: result.categoryId,
-        itemSpecifics: result.itemSpecifics,
-        aiScore: result.aiScore,
-        aiTone: result.aiTone,
-        isEditing: false,
-        isApproved: false,
-      });
+  const optimize = useCallback(
+    async (payload: OptimizePayload) => {
+      setIsLoading(true);
+      setError(null);
+      setIsSuccess(false);
+
+      // Check for a demo match first — instant result with a brief loading feel
+      const demoResult = findDemoListing(payload.prompt, payload.platform);
+
+      if (demoResult) {
+        // Simulate a realistic 1.4s AI generation time
+        await new Promise((r) => setTimeout(r, 1400));
+        addDraft(demoResult);
+        setIsSuccess(true);
+        setIsLoading(false);
+        return;
+      }
+
+      // No demo match — call the real Gemini API
+      try {
+        const result = await callOptimizeApi(payload);
+        addDraft({
+          id: nanoid(),
+          platform: payload.platform,
+          seoTitle: result.seoTitle,
+          seoDescription: result.seoDescription,
+          price: result.suggestedPrice,
+          condition: result.condition,
+          categoryId: result.categoryId,
+          itemSpecifics: result.itemSpecifics,
+          aiScore: result.aiScore,
+          aiTone: result.aiTone,
+          isEditing: false,
+          isApproved: false,
+        });
+        setIsSuccess(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong");
+      } finally {
+        setIsLoading(false);
+      }
     },
-  });
+    [addDraft]
+  );
 
-  return {
-    optimize: mutation.mutate,
-    isLoading: mutation.isPending,
-    error: mutation.error?.message ?? null,
-    isSuccess: mutation.isSuccess,
-    reset: mutation.reset,
-  };
+  const reset = useCallback(() => {
+    setError(null);
+    setIsSuccess(false);
+  }, []);
+
+  return { optimize, isLoading, error, isSuccess, reset };
 }

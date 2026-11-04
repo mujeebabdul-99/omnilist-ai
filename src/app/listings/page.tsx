@@ -6,7 +6,7 @@ import {
   MoreHorizontal, ExternalLink, RefreshCw, Trash2,
   TrendingUp, Eye, Edit3, CheckCircle, Clock,
   XCircle, AlertCircle, Zap, ArrowUpDown,
-  Package, ShoppingBag, Store,
+  Package, ShoppingBag, Store, Tag,
 } from "lucide-react";
 
 /* ─── Types ─── */
