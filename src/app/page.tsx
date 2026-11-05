@@ -55,7 +55,13 @@ export default function DashboardPage() {
         <CommandInput onSubmit={handlePrompt} isLoading={isLoading} prefill={upcPrefill} />
 
         {/* UPC Scanner */}
-        <UpcScanner onProductFound={(prompt) => setUpcPrefill(prompt)} />
+        <UpcScanner
+          onProductFound={(prompt) => setUpcPrefill(prompt)}
+          onGenerateListing={(prompt, platform) => {
+            setUpcPrefill("");
+            optimize({ prompt, platform });
+          }}
+        />
 
         {/* Loading state */}
         {isLoading && (

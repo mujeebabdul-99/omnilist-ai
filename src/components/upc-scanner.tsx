@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Barcode, Loader2, X, CheckCircle, AlertCircle } from "lucide-react";
+import {
+  Barcode, Loader2, X, CheckCircle, AlertCircle,
+  Sparkles, ShoppingBag, Store, Bookmark,
+} from "lucide-react";
+import type { Platform } from "@/stores/draft-store";
 
 interface UpcResult {
   upc: string;
@@ -15,14 +19,27 @@ interface UpcResult {
 
 interface UpcScannerProps {
   onProductFound: (prompt: string) => void;
+  onGenerateListing: (prompt: string, platform: Platform) => void;
 }
 
-export function UpcScanner({ onProductFound }: UpcScannerProps) {
+const PLATFORMS: {
+  key: Platform;
+  label: string;
+  icon: typeof ShoppingBag;
+  color: string;
+}[] = [
+  { key: "EBAY", label: "eBay", icon: ShoppingBag, color: "#F5AF02" },
+  { key: "SHOPIFY", label: "Shopify", icon: Store, color: "#96BF48" },
+];
+
+export function UpcScanner({ onProductFound, onGenerateListing }: UpcScannerProps) {
   const [upc, setUpc] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<UpcResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [condition, setCondition] = useState("");
+  const [saved, setSaved] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const lookup = async () => {
@@ -32,6 +49,7 @@ export function UpcScanner({ onProductFound }: UpcScannerProps) {
     setIsLoading(true);
     setResult(null);
     setError(null);
+    setSaved(false);
 
     try {
       const res = await fetch(`/api/upc/lookup?upc=${cleaned}`);
@@ -43,15 +61,7 @@ export function UpcScanner({ onProductFound }: UpcScannerProps) {
       }
 
       setResult(data);
-
-      // Build a prompt pre-filled with product data
-      const parts: string[] = [];
-      if (data.title) parts.push(data.title);
-      if (data.brand && !data.title.toLowerCase().includes(data.brand.toLowerCase())) {
-        parts.push(`by ${data.brand}`);
-      }
-      const prompt = parts.join(", ");
-      onProductFound(prompt);
+      onProductFound(data.title);
     } catch {
       setError("Could not reach UPC service. Check your connection.");
     } finally {
@@ -59,21 +69,39 @@ export function UpcScanner({ onProductFound }: UpcScannerProps) {
     }
   };
 
+  const buildPrompt = () => {
+    if (!result) return "";
+    return condition.trim() ? `${result.title}, ${condition.trim()}` : result.title;
+  };
+
+  const handleGenerate = (platform: Platform) => {
+    const prompt = buildPrompt();
+    if (!prompt) return;
+    onGenerateListing(prompt, platform);
+    setResult(null);
+    setUpc("");
+    setCondition("");
+    setSaved(false);
+  };
+
+  const handleSave = () => setSaved(true);
+
   const clear = () => {
     setUpc("");
     setResult(null);
     setError(null);
+    setCondition("");
+    setSaved(false);
     inputRef.current?.focus();
   };
 
   return (
     <div style={{ maxWidth: "720px", margin: "0 auto" }}>
-      {/* Input row */}
+      {/* ── Barcode input row ── */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "0",
           borderRadius: "16px",
           border: isFocused
             ? "1.5px solid rgba(197,231,86,0.5)"
@@ -84,80 +112,50 @@ export function UpcScanner({ onProductFound }: UpcScannerProps) {
           boxShadow: isFocused ? "0 0 20px rgba(197,231,86,0.1)" : "none",
         }}
       >
-        {/* Barcode icon label */}
+        {/* Label */}
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
+            display: "flex", alignItems: "center", gap: "6px",
             padding: "10px 14px",
             borderRight: "1px solid rgba(255,255,255,0.06)",
             flexShrink: 0,
           }}
         >
           <Barcode style={{ width: "15px", height: "15px", color: "#C5E756" }} />
-          <span
-            style={{
-              fontSize: "11px",
-              fontWeight: "700",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: "#C5E756",
-            }}
-          >
+          <span style={{
+            fontSize: "11px", fontWeight: "700",
+            letterSpacing: "0.08em", textTransform: "uppercase", color: "#C5E756",
+          }}>
             UPC
           </span>
         </div>
 
-        {/* UPC text input */}
+        {/* Input */}
         <input
           ref={inputRef}
           type="text"
           inputMode="numeric"
           value={upc}
-          onChange={(e) => {
-            setUpc(e.target.value);
-            setResult(null);
-            setError(null);
-          }}
+          onChange={(e) => { setUpc(e.target.value); setResult(null); setError(null); setSaved(false); }}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") lookup();
-          }}
-          placeholder="Scan or type a barcode (e.g. 194252968147)"
+          onKeyDown={(e) => { if (e.key === "Enter") lookup(); }}
+          placeholder="Scan or type a barcode (e.g. 190198001573)"
           disabled={isLoading}
           style={{
-            flex: 1,
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            fontSize: "14px",
-            color: "#FFFFFF",
-            fontFamily: "inherit",
-            padding: "11px 14px",
-            letterSpacing: "0.02em",
+            flex: 1, background: "transparent", border: "none", outline: "none",
+            fontSize: "14px", color: "#FFFFFF", fontFamily: "inherit",
+            padding: "11px 14px", letterSpacing: "0.02em",
           }}
         />
 
-        {/* Clear button */}
+        {/* Clear */}
         {upc && !isLoading && (
           <button
             onClick={clear}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "#4A5160",
-              padding: "0 8px",
-              display: "flex",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#4A5160";
-            }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#4A5160", padding: "0 8px", display: "flex" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#4A5160"; }}
           >
             <X style={{ width: "14px", height: "14px" }} />
           </button>
@@ -168,116 +166,150 @@ export function UpcScanner({ onProductFound }: UpcScannerProps) {
           onClick={lookup}
           disabled={isLoading || upc.replace(/\D/g, "").length < 8}
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
+            display: "flex", alignItems: "center", gap: "6px",
             padding: "10px 16px",
-            background:
-              upc.replace(/\D/g, "").length >= 8 && !isLoading
-                ? "rgba(197,231,86,0.12)"
-                : "rgba(255,255,255,0.03)",
-            border: "none",
-            borderLeft: "1px solid rgba(255,255,255,0.06)",
-            cursor:
-              upc.replace(/\D/g, "").length >= 8 && !isLoading
-                ? "pointer"
-                : "not-allowed",
-            color:
-              upc.replace(/\D/g, "").length >= 8 && !isLoading
-                ? "#C5E756"
-                : "#3E4756",
-            fontSize: "12px",
-            fontWeight: "700",
-            fontFamily: "inherit",
-            letterSpacing: "0.06em",
-            transition: "all 0.2s",
-            flexShrink: 0,
+            background: upc.replace(/\D/g, "").length >= 8 && !isLoading
+              ? "rgba(197,231,86,0.12)" : "rgba(255,255,255,0.03)",
+            border: "none", borderLeft: "1px solid rgba(255,255,255,0.06)",
+            cursor: upc.replace(/\D/g, "").length >= 8 && !isLoading ? "pointer" : "not-allowed",
+            color: upc.replace(/\D/g, "").length >= 8 && !isLoading ? "#C5E756" : "#3E4756",
+            fontSize: "12px", fontWeight: "700", fontFamily: "inherit",
+            letterSpacing: "0.06em", transition: "all 0.2s", flexShrink: 0,
           }}
         >
-          {isLoading ? (
-            <Loader2
-              style={{
-                width: "14px",
-                height: "14px",
-                animation: "spin 1s linear infinite",
-              }}
-            />
-          ) : (
-            "Lookup"
-          )}
+          {isLoading
+            ? <Loader2 style={{ width: "14px", height: "14px", animation: "spin 1s linear infinite" }} />
+            : "Lookup"}
         </button>
       </div>
 
-      {/* Result pill */}
+      {/* ── Product result card ── */}
       {result && (
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            marginTop: "10px",
-            padding: "10px 14px",
-            borderRadius: "12px",
-            background: "rgba(197,231,86,0.06)",
+            marginTop: "12px",
+            borderRadius: "18px",
             border: "1px solid rgba(197,231,86,0.18)",
+            background: "linear-gradient(145deg, #0D1217 0%, #0A0E13 100%)",
+            overflow: "hidden",
             animation: "fadeIn 0.25s ease-out both",
+            boxShadow: "0 0 30px rgba(197,231,86,0.06)",
           }}
         >
-          <CheckCircle
-            style={{ width: "14px", height: "14px", color: "#C5E756", flexShrink: 0 }}
-          />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p
-              style={{
-                fontSize: "13px",
-                fontWeight: "600",
-                color: "#FFFFFF",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {result.title}
-            </p>
-            <p style={{ fontSize: "11px", color: "#6C737F", marginTop: "2px" }}>
-              {[result.brand, result.category].filter(Boolean).join(" · ")}
-              {result.lowestPrice && result.highestPrice
-                ? ` · $${result.lowestPrice} – $${result.highestPrice}`
-                : ""}
-            </p>
+          {/* Product info header */}
+          <div style={{ padding: "16px 18px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                  <CheckCircle style={{ width: "13px", height: "13px", color: "#C5E756", flexShrink: 0 }} />
+                  <span style={{
+                    fontSize: "10px", fontWeight: "700",
+                    letterSpacing: "0.08em", textTransform: "uppercase", color: "#C5E756",
+                  }}>
+                    Product Found
+                  </span>
+                </div>
+                <p style={{ fontSize: "15px", fontWeight: "700", color: "#FFFFFF", lineHeight: "1.4", marginBottom: "4px" }}>
+                  {result.title}
+                </p>
+                <p style={{ fontSize: "12px", color: "#6C737F" }}>
+                  {[result.brand, result.category].filter(Boolean).join(" · ")}
+                  {result.lowestPrice && result.highestPrice
+                    ? ` · Market: $${result.lowestPrice} – $${result.highestPrice}`
+                    : ""}
+                </p>
+              </div>
+
+              {/* Save for later */}
+              <button
+                onClick={handleSave}
+                title="Save to product queue"
+                style={{
+                  display: "flex", alignItems: "center", gap: "5px",
+                  padding: "6px 12px", borderRadius: "20px",
+                  border: saved ? "1px solid rgba(197,231,86,0.3)" : "1px solid rgba(255,255,255,0.08)",
+                  background: saved ? "rgba(197,231,86,0.1)" : "rgba(255,255,255,0.03)",
+                  color: saved ? "#C5E756" : "#6C737F",
+                  cursor: "pointer", fontSize: "11px", fontWeight: "600",
+                  fontFamily: "inherit", transition: "all 0.2s", flexShrink: 0,
+                }}
+                onMouseEnter={(e) => {
+                  if (!saved) (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(197,231,86,0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  if (!saved) (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.08)";
+                }}
+              >
+                <Bookmark style={{ width: "12px", height: "12px" }} />
+                {saved ? "Saved" : "Save for later"}
+              </button>
+            </div>
           </div>
-          <span
-            style={{
-              fontSize: "10px",
-              color: "#C5E756",
-              fontWeight: "700",
-              letterSpacing: "0.06em",
-              flexShrink: 0,
-            }}
-          >
-            Pre-filled
-          </span>
+
+          {/* Condition notes */}
+          <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            <label style={{
+              display: "block", fontSize: "10px", fontWeight: "700",
+              letterSpacing: "0.08em", textTransform: "uppercase",
+              color: "#4A5160", marginBottom: "8px",
+            }}>
+              Condition Notes (optional)
+            </label>
+            <input
+              type="text"
+              value={condition}
+              onChange={(e) => setCondition(e.target.value)}
+              placeholder='e.g. "cracked screen, 78% battery" or "like new, original box"'
+              style={{
+                width: "100%", background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.07)", borderRadius: "10px",
+                padding: "9px 12px", color: "#FFFFFF", fontSize: "13px",
+                fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(197,231,86,0.3)"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; }}
+            />
+          </div>
+
+          {/* Generate buttons */}
+          <div style={{ padding: "14px 18px", display: "flex", gap: "10px", alignItems: "center" }}>
+            <span style={{ fontSize: "11px", color: "#4A5160", fontWeight: "600", flexShrink: 0 }}>
+              Generate for:
+            </span>
+            {PLATFORMS.map(({ key, label, icon: Icon, color }) => (
+              <button
+                key={key}
+                onClick={() => handleGenerate(key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "8px 16px", borderRadius: "20px",
+                  background: `${color}18`, border: `1px solid ${color}40`,
+                  color, cursor: "pointer", fontSize: "12px",
+                  fontWeight: "700", fontFamily: "inherit", transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = `${color}30`; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = `${color}18`; }}
+              >
+                <Sparkles style={{ width: "11px", height: "11px" }} />
+                <Icon style={{ width: "11px", height: "11px" }} />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Error pill */}
+      {/* ── Error ── */}
       {error && (
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            marginTop: "10px",
-            padding: "10px 14px",
-            borderRadius: "12px",
-            background: "rgba(239,68,68,0.06)",
-            border: "1px solid rgba(239,68,68,0.18)",
+            display: "flex", alignItems: "center", gap: "10px",
+            marginTop: "10px", padding: "10px 14px", borderRadius: "12px",
+            background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.18)",
             animation: "fadeIn 0.25s ease-out both",
           }}
         >
-          <AlertCircle
-            style={{ width: "14px", height: "14px", color: "#EF4444", flexShrink: 0 }}
-          />
+          <AlertCircle style={{ width: "14px", height: "14px", color: "#EF4444", flexShrink: 0 }} />
           <p style={{ fontSize: "13px", color: "#EF4444" }}>{error}</p>
         </div>
       )}
