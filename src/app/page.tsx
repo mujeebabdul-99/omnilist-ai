@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { CommandInput } from "@/components/command-input";
 import { DraftPanel } from "@/components/draft-panel";
 import { StatCard } from "@/components/stat-card";
 import { RecentActivity } from "@/components/recent-activity";
 import { QuickListings } from "@/components/quick-listings";
+import { UpcScanner } from "@/components/upc-scanner";
 import { useOptimize } from "@/hooks/use-optimize";
 import { useDraftStore } from "@/stores/draft-store";
 import type { Platform } from "@/stores/draft-store";
@@ -16,6 +18,7 @@ import {
 export default function DashboardPage() {
   const { optimize, isLoading, error } = useOptimize();
   const draftCount = useDraftStore((s) => s.drafts.length);
+  const [upcPrefill, setUpcPrefill] = useState("");
 
   const handlePrompt = (prompt: string, platform: Platform) => {
     optimize({ prompt, platform });
@@ -49,7 +52,10 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <CommandInput onSubmit={handlePrompt} isLoading={isLoading} />
+        <CommandInput onSubmit={handlePrompt} isLoading={isLoading} prefill={upcPrefill} />
+
+        {/* UPC Scanner */}
+        <UpcScanner onProductFound={(prompt) => setUpcPrefill(prompt)} />
 
         {/* Loading state */}
         {isLoading && (

@@ -7,6 +7,7 @@ import type { Platform } from "@/stores/draft-store";
 interface CommandInputProps {
   onSubmit?: (prompt: string, platform: Platform) => void;
   isLoading?: boolean;
+  prefill?: string;
 }
 
 const SUGGESTIONS: { text: string; platform: Platform }[] = [
@@ -21,7 +22,7 @@ const PLATFORM_CONFIG: Record<Platform, { label: string; icon: typeof ShoppingBa
   SHOPIFY: { label: "Shopify", icon: Store, color: "#96BF48" },
 };
 
-export function CommandInput({ onSubmit, isLoading = false }: CommandInputProps) {
+export function CommandInput({ onSubmit, isLoading = false, prefill }: CommandInputProps) {
   const [value, setValue] = useState("");
   const [platform, setPlatform] = useState<Platform>("EBAY");
   const [isFocused, setIsFocused] = useState(false);
@@ -29,6 +30,15 @@ export function CommandInput({ onSubmit, isLoading = false }: CommandInputProps)
   const inputRef = useRef<HTMLInputElement>(null);
   const cfg = PLATFORM_CONFIG[platform];
   const PlatformIcon = cfg.icon;
+
+  // Pre-fill from UPC scanner
+  useEffect(() => {
+    if (prefill) {
+      setValue(prefill);
+      inputRef.current?.focus();
+      setShowSuggestions(false);
+    }
+  }, [prefill]);
 
   const handleSubmit = () => {
     if (!value.trim() || isLoading) return;
