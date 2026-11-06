@@ -1,4 +1,4 @@
-// Auth helpers — JWT via jose (edge-compatible), bcryptjs for hashing
+// Auth helpers — JWT via jose (Node.js path, edge-safe), bcryptjs for hashing
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
@@ -9,14 +9,14 @@ const SECRET = new TextEncoder().encode(
 const COOKIE_NAME = "omnilist_session";
 const MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
-export interface SessionPayload {
+export type SessionPayload = {
   userId: string;
   email: string;
-}
+};
 
 // ── Sign a JWT and set it as an HTTP-only cookie ──────────────────────────────
 export async function createSession(payload: SessionPayload) {
-  const token = await new SignJWT(payload)
+  const token = await new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
@@ -50,3 +50,4 @@ export async function deleteSession() {
   const cookieStore = await cookies();
   cookieStore.delete(COOKIE_NAME);
 }
+
