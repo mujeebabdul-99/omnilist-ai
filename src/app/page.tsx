@@ -9,6 +9,7 @@ import { QuickListings } from "@/components/quick-listings";
 import { UpcScanner } from "@/components/upc-scanner";
 import { useOptimize } from "@/hooks/use-optimize";
 import { useDraftStore } from "@/stores/draft-store";
+import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import type { Platform } from "@/stores/draft-store";
 import {
   Package, Tag, FileText, CircleDollarSign,
@@ -19,6 +20,17 @@ export default function DashboardPage() {
   const { optimize, isLoading, error } = useOptimize();
   const draftCount = useDraftStore((s) => s.drafts.length);
   const [upcPrefill, setUpcPrefill] = useState("");
+  const { data: dbStats } = useDashboardStats();
+
+  // Real DB stats if available, otherwise show 0s (not fake demo numbers)
+  const stats = dbStats?.stats;
+  const productCount = stats ? String(stats.products) : "0";
+  const liveCount = stats ? String(stats.liveListings) : "0";
+  const queueCount = stats ? String(stats.queue) : "0";
+  const errorCount = stats ? String(stats.errors) : "0";
+  const revenue = stats ? `$${stats.revenue.toFixed(2)}` : "$0.00";
+  // AI drafts = DB drafts + in-memory drafts from current session
+  const aiDraftCount = stats ? String(stats.aiDrafts + draftCount) : String(draftCount);
 
   const handlePrompt = (prompt: string, platform: Platform) => {
     optimize({ prompt, platform });
@@ -100,12 +112,12 @@ export default function DashboardPage() {
           Overview
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
-          <StatCard label="Products" value="339" icon={Package} variant="featured" />
-          <StatCard label="Live Listings" value="1" subtext="active" icon={Tag} />
-          <StatCard label="AI Drafts" value={String(draftCount)} subtext="pending review" icon={FileText} />
-          <StatCard label="Revenue" value="$261.99" subtext="this month" icon={CircleDollarSign} />
-          <StatCard label="Queue" value="3" subtext="processing" icon={ArrowLeftRight} />
-          <StatCard label="Errors" value="2" subtext="need attention" icon={AlertTriangle} />
+          <StatCard label="Products" value={productCount} icon={Package} variant="featured" />
+          <StatCard label="Live Listings" value={liveCount} subtext="active" icon={Tag} />
+          <StatCard label="AI Drafts" value={aiDraftCount} subtext="pending review" icon={FileText} />
+          <StatCard label="Revenue" value={revenue} subtext="this month" icon={CircleDollarSign} />
+          <StatCard label="Queue" value={queueCount} subtext="processing" icon={ArrowLeftRight} />
+          <StatCard label="Errors" value={errorCount} subtext="need attention" icon={AlertTriangle} />
         </div>
       </section>
 

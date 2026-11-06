@@ -49,3 +49,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to reach UPC lookup service" }, { status: 502 });
   }
 }
+

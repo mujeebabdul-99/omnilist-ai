@@ -5,7 +5,10 @@
  */
 
 import type { Platform, DraftListing } from "@/stores/draft-store";
-import { nanoid } from "nanoid";
+
+function uid() {
+  return Math.random().toString(36).slice(2, 11);
+}
 
 interface DemoProduct {
   keywords: string[];
@@ -505,7 +508,7 @@ export function findDemoListing(
   const template = match[platform.toLowerCase() as "ebay" | "shopify"][conditionKey];
 
   return {
-    id: nanoid(),
+    id: uid(),
     platform,
     isEditing: false,
     isApproved: false,

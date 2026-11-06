@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
-const VERIFICATION_TOKEN = process.env.EBAY_NOTIFICATION_TOKEN ?? "omnilist-ebay-verify-2024";
+const VERIFICATION_TOKEN = process.env.EBAY_NOTIFICATION_TOKEN ?? "omnilistebayverificationtoken2024xsecure";
 const ENDPOINT_URL = `${process.env.NEXTAUTH_URL ?? "https://mediumslateblue-dinosaur-388048.hostingersite.com"}/api/ebay/notifications`;
 
 /**
@@ -45,3 +45,4 @@ export async function POST(req: NextRequest) {
     return new NextResponse(null, { status: 200 }); // Always 200 to eBay
   }
 }
+
