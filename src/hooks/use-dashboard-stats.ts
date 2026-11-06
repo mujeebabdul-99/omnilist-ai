@@ -41,3 +41,4 @@ export function useDashboardStats() {
     staleTime: 15_000,
   });
 }
+

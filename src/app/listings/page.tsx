@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Search,
   MoreHorizontal, ExternalLink, RefreshCw, Trash2,
   TrendingUp, Eye, Edit3, CheckCircle, Clock,
   XCircle, AlertCircle, Zap, ArrowUpDown,
-  Package, ShoppingBag, Store, Tag,
+  Package, ShoppingBag, Store, Tag, Loader2,
 } from "lucide-react";
 
 /* ─── Types ─── */
@@ -15,30 +15,27 @@ type Status = "LIVE" | "DRAFT" | "QUEUED" | "ERROR" | "ENDED";
 
 interface Listing {
   id: string;
-  productTitle: string;
   platform: Platform;
   status: Status;
-  price: number;
-  views: number;
-  watchers: number;
-  aiScore: number;
-  listedAt: string;
-  category: string;
-  condition: string;
-  externalUrl?: string;
+  seoTitle: string;
+  seoDescription: string;
+  price: string;   // Decimal comes as string from Prisma JSON
+  condition: string | null;
+  categoryId: string | null;
+  itemSpecifics: Record<string, string> | null;
+  platformItemId: string | null;
+  platformUrl: string | null;
+  aiScore: number | null;
+  aiTone: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  productId: string;
+  product: {
+    title: string;
+    upc: string;
+  };
 }
-
-/* ─── Mock data ─── */
-const MOCK_LISTINGS: Listing[] = [
-  { id: "L001", productTitle: "Apple iPhone 13 Pro 128GB Graphite - Unlocked - Good Condition", platform: "EBAY", status: "LIVE", price: 450, views: 284, watchers: 12, aiScore: 95, listedAt: "2024-10-20", category: "Cell Phones", condition: "Used - Good", externalUrl: "#" },
-  { id: "L002", productTitle: "Sony WH-1000XM5 Wireless Noise-Canceling Headphones Black", platform: "SHOPIFY", status: "LIVE", price: 249, views: 97, watchers: 0, aiScore: 88, listedAt: "2024-10-18", category: "Audio", condition: "New", externalUrl: "#" },
-  { id: "L003", productTitle: "Sony WH-1000XM5 Wireless Headphones Over-Ear ANC", platform: "EBAY", status: "DRAFT", price: 239, views: 0, watchers: 0, aiScore: 78, listedAt: "2024-10-18", category: "Headphones", condition: "Open box" },
-  { id: "L004", productTitle: "Samsung Galaxy S24 Ultra 256GB Titanium Black Unlocked", platform: "EBAY", status: "QUEUED", price: 920, views: 0, watchers: 0, aiScore: 91, listedAt: "2024-10-15", category: "Cell Phones", condition: "Used - Like New" },
-  { id: "L005", productTitle: "PlayStation 5 Console Disc Edition - Bundle", platform: "EBAY", status: "LIVE", price: 480, views: 1240, watchers: 43, aiScore: 82, listedAt: "2024-10-12", category: "Gaming", condition: "Used - Very Good", externalUrl: "#" },
-  { id: "L006", productTitle: "Nike Air Max 90 Mens Shoes Size 10 White/Black", platform: "SHOPIFY", status: "LIVE", price: 95, views: 58, watchers: 0, aiScore: 74, listedAt: "2024-10-10", category: "Footwear", condition: "New", externalUrl: "#" },
-  { id: "L007", productTitle: "Apple MacBook Pro 14-inch M2 Pro 512GB Space Gray", platform: "EBAY", status: "ERROR", price: 1499, views: 12, watchers: 1, aiScore: 89, listedAt: "2024-10-08", category: "Laptops", condition: "Refurbished" },
-  { id: "L008", productTitle: "PlayStation 5 Controller DualSense Midnight Black", platform: "SHOPIFY", status: "ENDED", price: 69, views: 320, watchers: 0, aiScore: 76, listedAt: "2024-09-30", category: "Gaming", condition: "New" },
-];
 
 /* ─── Config ─── */
 const STATUS_CFG: Record<Status, { label: string; color: string; bg: string; border: string; icon: typeof CheckCircle }> = {
@@ -73,8 +70,19 @@ function MiniStat({ label, value, sub, color = "#FFFFFF" }: { label: string; val
 
 /* ─── Row action menu ─── */
 function ActionMenu({ listing, onClose }: { listing: Listing; onClose: () => void }) {
+  const handleClick = (action: string) => {
+    if (action === "View on Marketplace") {
+      if (listing.platformUrl) {
+        window.open(listing.platformUrl, "_blank", "noopener,noreferrer");
+      }
+    } else if (action === "Delete") {
+      alert("Delete listing: coming soon");
+    }
+    onClose();
+  };
+
   const items = [
-    { icon: Eye, label: "View on Marketplace", color: "#E1E4EA", disabled: !listing.externalUrl },
+    { icon: Eye, label: "View on Marketplace", color: "#E1E4EA", disabled: !listing.platformUrl },
     { icon: Edit3, label: "Edit Listing", color: "#E1E4EA" },
     { icon: RefreshCw, label: "Re-optimize with AI", color: "#C5E756" },
     { icon: Zap, label: listing.status === "LIVE" ? "End Listing" : "Publish Now", color: listing.status === "LIVE" ? "#F5AF02" : "#C5E756" },
@@ -101,7 +109,7 @@ function ActionMenu({ listing, onClose }: { listing: Listing; onClose: () => voi
         }}
           onMouseEnter={(e) => { if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.05)"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
-          onClick={onClose}
+          onClick={() => handleClick(label)}
         >
           <Icon style={{ width: "14px", height: "14px", flexShrink: 0 }} />
           {label}
@@ -119,11 +127,14 @@ function ListingRow({ listing }: { listing: Listing }) {
   const StatusIcon = scfg.icon;
   const PlatformIcon = pcfg.icon;
 
+  const priceNum = parseFloat(listing.price) || 0;
+  const aiScore = listing.aiScore ?? 0;
+
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "2.8fr 110px 110px 90px 80px 80px 80px 60px",
+        gridTemplateColumns: "2.8fr 110px 110px 90px 80px 60px",
         alignItems: "center", padding: "14px 20px",
         borderBottom: "1px solid rgba(255,255,255,0.04)",
         transition: "background 0.15s", position: "relative",
@@ -141,11 +152,15 @@ function ListingRow({ listing }: { listing: Listing }) {
           <p style={{
             fontSize: "13px", fontWeight: "600", color: "#FFFFFF", margin: "0 0 3px",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>{listing.productTitle}</p>
+          }}>{listing.product.title}</p>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "10px", fontWeight: "600", color: "#3E4756" }}>{listing.id}</span>
-            <span style={{ fontSize: "10px", color: "#3E4756" }}>·</span>
-            <span style={{ fontSize: "10px", color: "#3E4756" }}>{listing.condition}</span>
+            <span style={{ fontSize: "10px", fontWeight: "600", color: "#3E4756" }}>{listing.product.upc}</span>
+            {listing.condition && (
+              <>
+                <span style={{ fontSize: "10px", color: "#3E4756" }}>·</span>
+                <span style={{ fontSize: "10px", color: "#3E4756" }}>{listing.condition}</span>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -163,19 +178,7 @@ function ListingRow({ listing }: { listing: Listing }) {
       </div>
 
       {/* Price */}
-      <span style={{ fontSize: "14px", fontWeight: "700", color: "#C5E756" }}>${listing.price.toFixed(2)}</span>
-
-      {/* Views */}
-      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-        <Eye style={{ width: "12px", height: "12px", color: "#4A5160" }} />
-        <span style={{ fontSize: "12px", color: listing.views > 0 ? "#A0A6B2" : "#4A5160" }}>{listing.views > 999 ? `${(listing.views / 1000).toFixed(1)}k` : listing.views}</span>
-      </div>
-
-      {/* Watchers */}
-      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-        <TrendingUp style={{ width: "12px", height: "12px", color: listing.watchers > 0 ? "#F5AF02" : "#4A5160" }} />
-        <span style={{ fontSize: "12px", color: listing.watchers > 0 ? "#F5AF02" : "#4A5160" }}>{listing.watchers}</span>
-      </div>
+      <span style={{ fontSize: "14px", fontWeight: "700", color: "#C5E756" }}>${priceNum.toFixed(2)}</span>
 
       {/* AI Score */}
       <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
@@ -185,22 +188,26 @@ function ListingRow({ listing }: { listing: Listing }) {
         }}>
           <div style={{
             height: "100%", borderRadius: "3px",
-            width: `${listing.aiScore}%`,
-            background: listing.aiScore >= 85 ? "#C5E756" : listing.aiScore >= 70 ? "#F5AF02" : "#EF4444",
+            width: `${aiScore}%`,
+            background: aiScore >= 85 ? "#C5E756" : aiScore >= 70 ? "#F5AF02" : "#EF4444",
           }} />
         </div>
-        <span style={{ fontSize: "11px", color: "#5A6270" }}>{listing.aiScore}</span>
+        <span style={{ fontSize: "11px", color: "#5A6270" }}>{listing.aiScore !== null ? aiScore : "–"}</span>
       </div>
 
       {/* Actions */}
       <div style={{ display: "flex", justifyContent: "flex-end", position: "relative" }}>
-        {listing.externalUrl && (
-          <a href={listing.externalUrl} target="_blank" rel="noopener noreferrer"
+        {listing.platformUrl ? (
+          <a href={listing.platformUrl} target="_blank" rel="noopener noreferrer"
             style={{ background: "none", border: "none", cursor: "pointer", color: "#4A5160", display: "flex", padding: "4px", marginRight: "4px", textDecoration: "none" }}
             onClick={(e) => e.stopPropagation()}
           >
             <ExternalLink style={{ width: "14px", height: "14px" }} />
           </a>
+        ) : (
+          <span style={{ display: "flex", padding: "4px", marginRight: "4px", color: "#2A3040", cursor: "not-allowed" }}>
+            <ExternalLink style={{ width: "14px", height: "14px" }} />
+          </span>
         )}
         <button
           onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
@@ -216,27 +223,81 @@ function ListingRow({ listing }: { listing: Listing }) {
   );
 }
 
+/* ─── Loading Skeleton ─── */
+function LoadingSkeleton() {
+  return (
+    <div style={{ textAlign: "center", padding: "80px 20px" }}>
+      <Loader2 style={{
+        width: "36px", height: "36px", color: "#C5E756", margin: "0 auto 16px",
+        animation: "spin 1s linear infinite",
+      }} />
+      <p style={{ fontSize: "15px", fontWeight: "600", color: "#4A5160", margin: "0 0 4px" }}>Loading listings…</p>
+      <p style={{ fontSize: "13px", color: "#3A4050", margin: 0 }}>Fetching from database</p>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
 /* ─── Main Page ─── */
 export default function ListingsPage() {
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "ALL">("ALL");
   const [platformFilter, setPlatformFilter] = useState<Platform | "ALL">("ALL");
 
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchListings() {
+      setLoading(true);
+      setFetchError(null);
+      try {
+        const res = await fetch("/api/listings");
+        if (!res.ok) {
+          throw new Error(`Failed to fetch listings (${res.status})`);
+        }
+        const data = await res.json();
+        if (!cancelled) {
+          setListings(Array.isArray(data.listings) ? data.listings : []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setFetchError(err instanceof Error ? err.message : "Unknown error");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+    fetchListings();
+    return () => { cancelled = true; };
+  }, []);
+
   const filtered = useMemo(() => {
-    return MOCK_LISTINGS.filter((l) => {
-      const matchSearch = search === "" || l.productTitle.toLowerCase().includes(search.toLowerCase()) || l.id.toLowerCase().includes(search.toLowerCase());
+    return listings.filter((l) => {
+      const matchSearch =
+        search === "" ||
+        l.product.title.toLowerCase().includes(search.toLowerCase()) ||
+        l.seoTitle.toLowerCase().includes(search.toLowerCase()) ||
+        l.product.upc.toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter === "ALL" || l.status === statusFilter;
       const matchPlatform = platformFilter === "ALL" || l.platform === platformFilter;
       return matchSearch && matchStatus && matchPlatform;
     });
-  }, [search, statusFilter, platformFilter]);
+  }, [listings, search, statusFilter, platformFilter]);
 
-  // Aggregate stats
-  const liveCount = MOCK_LISTINGS.filter((l) => l.status === "LIVE").length;
-  const totalViews = MOCK_LISTINGS.reduce((a, l) => a + l.views, 0);
-  const totalWatchers = MOCK_LISTINGS.reduce((a, l) => a + l.watchers, 0);
-  const avgScore = Math.round(MOCK_LISTINGS.reduce((a, l) => a + l.aiScore, 0) / MOCK_LISTINGS.length);
-  const errorCount = MOCK_LISTINGS.filter((l) => l.status === "ERROR").length;
+  // Aggregate stats from ALL listings (not filtered)
+  const liveCount = listings.filter((l) => l.status === "LIVE").length;
+  const draftCount = listings.filter((l) => l.status === "DRAFT").length;
+  const queuedCount = listings.filter((l) => l.status === "QUEUED").length;
+  const errorCount = listings.filter((l) => l.status === "ERROR").length;
+  const scoresWithValue = listings.filter((l) => l.aiScore !== null);
+  const avgScore = scoresWithValue.length > 0
+    ? Math.round(scoresWithValue.reduce((a, l) => a + (l.aiScore ?? 0), 0) / scoresWithValue.length)
+    : 0;
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#080B0E", padding: "40px 40px 80px" }}>
@@ -248,7 +309,7 @@ export default function ListingsPage() {
             Listings
           </h1>
           <p style={{ fontSize: "14px", color: "#5A6270", margin: 0 }}>
-            {MOCK_LISTINGS.length} total · {liveCount} live across eBay & Shopify
+            {listings.length} total · {liveCount} live across eBay & Shopify
           </p>
         </div>
         {errorCount > 0 && (
@@ -265,10 +326,10 @@ export default function ListingsPage() {
 
       {/* Stats row */}
       <div style={{ display: "flex", gap: "14px", marginBottom: "28px" }}>
-        <MiniStat label="Live Listings" value={String(liveCount)} sub={`of ${MOCK_LISTINGS.length} total`} color="#C5E756" />
-        <MiniStat label="Total Views" value={totalViews > 999 ? `${(totalViews / 1000).toFixed(1)}k` : String(totalViews)} sub="across all platforms" color="#82DBF7" />
-        <MiniStat label="Watchers" value={String(totalWatchers)} sub="active eBay watchers" color="#F5AF02" />
-        <MiniStat label="Avg AI Score" value={`${avgScore}/100`} sub="listing quality" color={avgScore >= 80 ? "#C5E756" : "#F5AF02"} />
+        <MiniStat label="Live Listings" value={String(liveCount)} sub={`of ${listings.length} total`} color="#C5E756" />
+        <MiniStat label="Draft" value={String(draftCount)} sub="awaiting publish" color="#82DBF7" />
+        <MiniStat label="Queued" value={String(queuedCount)} sub="pending processing" color="#F5AF02" />
+        <MiniStat label="Avg AI Score" value={scoresWithValue.length > 0 ? `${avgScore}/100` : "–"} sub="listing quality" color={avgScore >= 80 ? "#C5E756" : "#F5AF02"} />
       </div>
 
       {/* Filters bar */}
@@ -278,7 +339,7 @@ export default function ListingsPage() {
           <Search style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", width: "15px", height: "15px", color: "#4A5160" }} />
           <input
             type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by title or listing ID…"
+            placeholder="Search by title or UPC…"
             style={{
               width: "100%", padding: "11px 14px 11px 40px", borderRadius: "12px",
               background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
@@ -335,7 +396,7 @@ export default function ListingsPage() {
         {/* Table header */}
         <div style={{
           display: "grid",
-          gridTemplateColumns: "2.8fr 110px 110px 90px 80px 80px 80px 60px",
+          gridTemplateColumns: "2.8fr 110px 110px 90px 80px 60px",
           padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)",
           background: "rgba(255,255,255,0.02)",
         }}>
@@ -344,21 +405,43 @@ export default function ListingsPage() {
             { label: "Platform", icon: null },
             { label: "Status", icon: null },
             { label: "Price", icon: ArrowUpDown },
-            { label: "Views", icon: null },
-            { label: "Watchers", icon: null },
             { label: "Score", icon: null },
             { label: "", icon: null },
           ].map(({ label, icon: Icon }) => (
-            <div key={label} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            <div key={label || "actions"} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
               <span style={{ fontSize: "10px", fontWeight: "700", color: "#3E4756", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</span>
               {Icon && <Icon style={{ width: "11px", height: "11px", color: "#3E4756", cursor: "pointer" }} />}
             </div>
           ))}
         </div>
 
-        {/* Rows */}
-        {filtered.length > 0 ? (
+        {/* Content */}
+        {loading ? (
+          <LoadingSkeleton />
+        ) : fetchError ? (
+          <div style={{ textAlign: "center", padding: "60px 20px" }}>
+            <XCircle style={{ width: "36px", height: "36px", color: "#EF4444", margin: "0 auto 12px" }} />
+            <p style={{ fontSize: "15px", fontWeight: "600", color: "#EF4444", margin: "0 0 4px" }}>Failed to load listings</p>
+            <p style={{ fontSize: "13px", color: "#3A4050", margin: "0 0 16px" }}>{fetchError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                padding: "8px 20px", borderRadius: "10px", border: "1px solid rgba(239,68,68,0.3)",
+                background: "rgba(239,68,68,0.1)", color: "#EF4444",
+                fontSize: "13px", fontWeight: "600", cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        ) : filtered.length > 0 ? (
           filtered.map((l) => <ListingRow key={l.id} listing={l} />)
+        ) : listings.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "60px 20px" }}>
+            <Package style={{ width: "36px", height: "36px", color: "#2A3040", margin: "0 auto 12px" }} />
+            <p style={{ fontSize: "15px", fontWeight: "600", color: "#4A5160", margin: "0 0 4px" }}>No listings yet</p>
+            <p style={{ fontSize: "13px", color: "#3A4050", margin: 0 }}>Create your first listing to get started</p>
+          </div>
         ) : (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <Tag style={{ width: "36px", height: "36px", color: "#2A3040", margin: "0 auto 12px" }} />
@@ -368,14 +451,14 @@ export default function ListingsPage() {
         )}
 
         {/* Footer */}
-        {filtered.length > 0 && (
+        {!loading && !fetchError && filtered.length > 0 && (
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.05)",
             background: "rgba(255,255,255,0.01)",
           }}>
             <span style={{ fontSize: "12px", color: "#3E4756" }}>
-              Showing {filtered.length} of {MOCK_LISTINGS.length} listings
+              Showing {filtered.length} of {listings.length} listings
             </span>
             <div style={{ display: "flex", gap: "6px" }}>
               {[1].map((p) => (
