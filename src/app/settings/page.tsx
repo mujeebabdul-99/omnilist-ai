@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Link as LinkIcon, Sparkles, User, Bell,
   Check, ExternalLink, AlertCircle,
-  Zap,
+  Zap, CheckCircle, Loader2,
 } from "lucide-react";
 
 /* ─── Types ─── */
@@ -93,7 +93,15 @@ function SectionHeader({ icon: Icon, title, description, iconColor = "#C5E756" }
   );
 }
 
-function PlatformCard({ platform }: { platform: Platform }) {
+function PlatformCard({
+  platform,
+  onDisconnect,
+  isDisconnecting,
+}: {
+  platform: Platform;
+  onDisconnect?: (id: string) => void;
+  isDisconnecting?: boolean;
+}) {
   const cfg = STATUS_CFG[platform.status];
   const isConnected = platform.status === "connected";
 
@@ -145,15 +153,20 @@ function PlatformCard({ platform }: { platform: Platform }) {
 
         {/* Action button */}
         {isConnected ? (
-          <button style={{
-            padding: "7px 14px", borderRadius: "10px", fontSize: "12px", fontWeight: "600",
-            background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
-            color: "#EF4444", cursor: "pointer", fontFamily: "inherit",
-          }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.15)"; }}
+          <button
+            onClick={() => onDisconnect?.(platform.id)}
+            disabled={isDisconnecting}
+            style={{
+              padding: "7px 14px", borderRadius: "10px", fontSize: "12px", fontWeight: "600",
+              background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
+              color: "#EF4444", cursor: isDisconnecting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              display: "flex", alignItems: "center", gap: "6px",
+            }}
+            onMouseEnter={(e) => { if (!isDisconnecting) (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.15)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)"; }}
           >
-            Disconnect
+            {isDisconnecting && <Loader2 style={{ width: "12px", height: "12px", animation: "spin 1s linear infinite" }} />}
+            {isDisconnecting ? "Disconnecting…" : "Disconnect"}
           </button>
         ) : platform.connectHref ? (
           <a href={platform.connectHref} style={{
@@ -226,10 +239,107 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
 }
 
 /* ─── Main Page ─── */
+interface IntegrationsState {
+  ebay?: { connected: boolean; expiresAt: string | null; expired: boolean };
+  shopify?: { connected: boolean; domain: string | null };
+}
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<"connections" | "ai" | "account" | "notifications">("connections");
   const [notifications, setNotifications] = useState({ listingSuccess: true, jobFailed: true, priceAlerts: false, weeklyReport: true });
   const [aiSettings, setAiSettings] = useState({ temperature: 0.4, tone: "professional", autoQueue: false });
+  const [integrations, setIntegrations] = useState<IntegrationsState>({});
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+  const [statusBanner, setStatusBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const fetchIntegrations = async () => {
+    try {
+      const res = await fetch("/api/integrations");
+      if (res.ok) {
+        const data = await res.json();
+        setIntegrations(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch integrations:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchIntegrations();
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("ebay_connected") === "true") {
+        setStatusBanner({
+          type: "success",
+          message: "eBay account successfully connected via OAuth 2.0!",
+        });
+      } else if (params.get("ebay_error")) {
+        setStatusBanner({
+          type: "error",
+          message: `eBay connection error: ${params.get("ebay_error")}`,
+        });
+      }
+    }
+  }, []);
+
+  const handleDisconnect = async (id: string) => {
+    if (!confirm(`Are you sure you want to disconnect ${id.toUpperCase()}?`)) return;
+    setDisconnectingId(id);
+    try {
+      const res = await fetch(`/api/integrations?platform=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setStatusBanner({ type: "success", message: `${id.toUpperCase()} disconnected successfully.` });
+        await fetchIntegrations();
+      } else {
+        setStatusBanner({ type: "error", message: `Failed to disconnect ${id.toUpperCase()}` });
+      }
+    } catch {
+      setStatusBanner({ type: "error", message: "Network error disconnecting platform" });
+    } finally {
+      setDisconnectingId(null);
+    }
+  };
+
+  const platforms: Platform[] = useMemo(() => [
+    {
+      id: "ebay",
+      name: "eBay",
+      description: "List, manage, and sync eBay inventory via OAuth 2.0",
+      authType: "OAuth 2.0",
+      color: "#E53238",
+      icon: "e",
+      status: integrations.ebay?.connected ? "connected" : integrations.ebay?.expired ? "error" : "disconnected",
+      connectHref: "/api/ebay/auth",
+    },
+    {
+      id: "shopify",
+      name: "Shopify",
+      description: "Push products to your Shopify store via Admin API",
+      authType: "Admin API Key",
+      color: "#96BF48",
+      icon: "S",
+      status: integrations.shopify?.connected ? "connected" : "disconnected",
+    },
+    {
+      id: "amazon",
+      name: "Amazon",
+      description: "Sync listings to Amazon via Selling Partner API",
+      authType: "SP-API",
+      color: "#FF9900",
+      icon: "A",
+      status: "disconnected",
+    },
+    {
+      id: "walmart",
+      name: "Walmart",
+      description: "Publish products to Walmart Marketplace",
+      authType: "API Key",
+      color: "#0071CE",
+      icon: "W",
+      status: "disconnected",
+    },
+  ], [integrations]);
 
   const tabs = [
     { id: "connections", label: "Connections", icon: LinkIcon },
@@ -241,6 +351,33 @@ export default function SettingsPage() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#080B0E", padding: "40px 40px 80px" }}>
       <div style={{ maxWidth: "820px", margin: "0 auto" }}>
+
+        {/* Status banner */}
+        {statusBanner && (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "14px 18px", borderRadius: "14px", marginBottom: "20px",
+            background: statusBanner.type === "success" ? "rgba(197,231,86,0.1)" : "rgba(239,68,68,0.1)",
+            border: `1px solid ${statusBanner.type === "success" ? "rgba(197,231,86,0.3)" : "rgba(239,68,68,0.3)"}`,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {statusBanner.type === "success" ? (
+                <CheckCircle style={{ width: "16px", height: "16px", color: "#C5E756", flexShrink: 0 }} />
+              ) : (
+                <AlertCircle style={{ width: "16px", height: "16px", color: "#EF4444", flexShrink: 0 }} />
+              )}
+              <span style={{ fontSize: "13px", fontWeight: "600", color: statusBanner.type === "success" ? "#C5E756" : "#EF4444" }}>
+                {statusBanner.message}
+              </span>
+            </div>
+            <button
+              onClick={() => setStatusBanner(null)}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#6C737F", fontSize: "16px" }}
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* Header */}
         <div style={{ marginBottom: "32px" }}>
@@ -295,7 +432,14 @@ export default function SettingsPage() {
                 description="Connect your seller accounts to enable AI-powered listing and inventory sync"
               />
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {PLATFORMS.map((p) => <PlatformCard key={p.id} platform={p} />)}
+                {platforms.map((p) => (
+                  <PlatformCard
+                    key={p.id}
+                    platform={p}
+                    onDisconnect={handleDisconnect}
+                    isDisconnecting={disconnectingId === p.id}
+                  />
+                ))}
               </div>
             </div>
 
@@ -310,10 +454,10 @@ export default function SettingsPage() {
               </div>
               {[
                 { done: true,  label: "Add Gemini API key" },
-                { done: false, label: "Connect eBay account via OAuth" },
-                { done: false, label: "Create a MySQL database for OmniList" },
+                { done: Boolean(integrations.ebay?.connected), label: "Connect eBay account via OAuth" },
+                { done: true, label: "Create a MySQL database for OmniList" },
                 { done: false, label: "Run your first AI listing" },
-                { done: true,  label: "Approve first AI draft" },
+                { done: false, label: "Approve first AI draft" },
               ].map((item, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "7px 0" }}>
                   <div style={{

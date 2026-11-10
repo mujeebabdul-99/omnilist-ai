@@ -69,23 +69,39 @@ function MiniStat({ label, value, sub, color = "#FFFFFF" }: { label: string; val
 }
 
 /* ─── Row action menu ─── */
-function ActionMenu({ listing, onClose }: { listing: Listing; onClose: () => void }) {
+function ActionMenu({
+  listing,
+  onClose,
+  onPublish,
+  onDelete,
+  onEnd,
+  isPublishing,
+}: {
+  listing: Listing;
+  onClose: () => void;
+  onPublish: (listing: Listing) => void;
+  onDelete: (id: string) => void;
+  onEnd: (id: string) => void;
+  isPublishing?: boolean;
+}) {
   const handleClick = (action: string) => {
     if (action === "View on Marketplace") {
       if (listing.platformUrl) {
         window.open(listing.platformUrl, "_blank", "noopener,noreferrer");
       }
+    } else if (action === "Publish Now") {
+      onPublish(listing);
+    } else if (action === "End Listing") {
+      onEnd(listing.id);
     } else if (action === "Delete") {
-      alert("Delete listing: coming soon");
+      onDelete(listing.id);
     }
     onClose();
   };
 
   const items = [
     { icon: Eye, label: "View on Marketplace", color: "#E1E4EA", disabled: !listing.platformUrl },
-    { icon: Edit3, label: "Edit Listing", color: "#E1E4EA" },
-    { icon: RefreshCw, label: "Re-optimize with AI", color: "#C5E756" },
-    { icon: Zap, label: listing.status === "LIVE" ? "End Listing" : "Publish Now", color: listing.status === "LIVE" ? "#F5AF02" : "#C5E756" },
+    { icon: Zap, label: listing.status === "LIVE" ? "End Listing" : isPublishing ? "Publishing…" : "Publish Now", color: listing.status === "LIVE" ? "#F5AF02" : "#C5E756", disabled: isPublishing },
     { icon: Trash2, label: "Delete", color: "#EF4444" },
   ];
   return (
@@ -120,7 +136,19 @@ function ActionMenu({ listing, onClose }: { listing: Listing; onClose: () => voi
 }
 
 /* ─── Table Row ─── */
-function ListingRow({ listing }: { listing: Listing }) {
+function ListingRow({
+  listing,
+  onPublish,
+  onDelete,
+  onEnd,
+  isPublishing,
+}: {
+  listing: Listing;
+  onPublish: (listing: Listing) => void;
+  onDelete: (id: string) => void;
+  onEnd: (id: string) => void;
+  isPublishing?: boolean;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const scfg = STATUS_CFG[listing.status];
   const pcfg = PLATFORM_CFG[listing.platform];
@@ -217,7 +245,16 @@ function ListingRow({ listing }: { listing: Listing }) {
         >
           <MoreHorizontal style={{ width: "16px", height: "16px" }} />
         </button>
-        {menuOpen && <ActionMenu listing={listing} onClose={() => setMenuOpen(false)} />}
+        {menuOpen && (
+          <ActionMenu
+            listing={listing}
+            onClose={() => setMenuOpen(false)}
+            onPublish={onPublish}
+            onDelete={onDelete}
+            onEnd={onEnd}
+            isPublishing={isPublishing}
+          />
+        )}
       </div>
     </div>
   );
@@ -247,34 +284,95 @@ export default function ListingsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "ALL">("ALL");
   const [platformFilter, setPlatformFilter] = useState<Platform | "ALL">("ALL");
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const fetchListings = async () => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const res = await fetch("/api/listings");
+      if (!res.ok) {
+        throw new Error(`Failed to fetch listings (${res.status})`);
+      }
+      const data = await res.json();
+      setListings(Array.isArray(data.listings) ? data.listings : []);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let cancelled = false;
-    async function fetchListings() {
-      setLoading(true);
-      setFetchError(null);
-      try {
-        const res = await fetch("/api/listings");
-        if (!res.ok) {
-          throw new Error(`Failed to fetch listings (${res.status})`);
-        }
-        const data = await res.json();
-        if (!cancelled) {
-          setListings(Array.isArray(data.listings) ? data.listings : []);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setFetchError(err instanceof Error ? err.message : "Unknown error");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
     fetchListings();
-    return () => { cancelled = true; };
   }, []);
+
+  const handlePublish = async (listing: Listing) => {
+    setPublishingId(listing.id);
+    setToastMessage(null);
+    try {
+      const res = await fetch(`/api/listings/${listing.id}/publish`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setToastMessage({ type: "error", text: data.error || "Failed to publish listing" });
+      } else {
+        setToastMessage({ type: "success", text: `Listing published live to ${listing.platform}!` });
+        // Update local listing
+        setListings((prev) =>
+          prev.map((l) =>
+            l.id === listing.id
+              ? {
+                  ...l,
+                  status: "LIVE",
+                  platformUrl: data.listing?.platformUrl ?? l.platformUrl,
+                  platformItemId: data.listing?.platformItemId ?? l.platformItemId,
+                }
+              : l
+          )
+        );
+      }
+    } catch {
+      setToastMessage({ type: "error", text: "Network error while publishing" });
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this listing?")) return;
+    try {
+      const res = await fetch(`/api/listings/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setListings((prev) => prev.filter((l) => l.id !== id));
+        setToastMessage({ type: "success", text: "Listing deleted successfully" });
+      } else {
+        setToastMessage({ type: "error", text: "Failed to delete listing" });
+      }
+    } catch {
+      setToastMessage({ type: "error", text: "Error deleting listing" });
+    }
+  };
+
+  const handleEnd = async (id: string) => {
+    try {
+      const res = await fetch(`/api/listings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ENDED" }),
+      });
+      if (res.ok) {
+        setListings((prev) =>
+          prev.map((l) => (l.id === id ? { ...l, status: "ENDED" } : l))
+        );
+        setToastMessage({ type: "success", text: "Listing marked as ended" });
+      }
+    } catch {
+      setToastMessage({ type: "error", text: "Failed to update listing status" });
+    }
+  };
 
   const filtered = useMemo(() => {
     return listings.filter((l) => {
@@ -301,6 +399,33 @@ export default function ListingsPage() {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#080B0E", padding: "40px 40px 80px" }}>
+
+      {/* Toast message banner */}
+      {toastMessage && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 18px", borderRadius: "14px", marginBottom: "20px",
+          background: toastMessage.type === "success" ? "rgba(197,231,86,0.1)" : "rgba(239,68,68,0.1)",
+          border: `1px solid ${toastMessage.type === "success" ? "rgba(197,231,86,0.3)" : "rgba(239,68,68,0.3)"}`,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {toastMessage.type === "success" ? (
+              <CheckCircle style={{ width: "16px", height: "16px", color: "#C5E756", flexShrink: 0 }} />
+            ) : (
+              <AlertCircle style={{ width: "16px", height: "16px", color: "#EF4444", flexShrink: 0 }} />
+            )}
+            <span style={{ fontSize: "13px", fontWeight: "600", color: toastMessage.type === "success" ? "#C5E756" : "#EF4444" }}>
+              {toastMessage.text}
+            </span>
+          </div>
+          <button
+            onClick={() => setToastMessage(null)}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#6C737F", fontSize: "16px" }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "28px" }}>
@@ -435,7 +560,16 @@ export default function ListingsPage() {
             </button>
           </div>
         ) : filtered.length > 0 ? (
-          filtered.map((l) => <ListingRow key={l.id} listing={l} />)
+          filtered.map((l) => (
+            <ListingRow
+              key={l.id}
+              listing={l}
+              onPublish={handlePublish}
+              onDelete={handleDelete}
+              onEnd={handleEnd}
+              isPublishing={publishingId === l.id}
+            />
+          ))
         ) : listings.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <Package style={{ width: "36px", height: "36px", color: "#2A3040", margin: "0 auto 12px" }} />

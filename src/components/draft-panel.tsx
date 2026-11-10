@@ -4,8 +4,10 @@ import { useState } from "react";
 import {
   X, Check, Edit3, Sparkles, ShoppingBag, Store,
   Tag, DollarSign, Package, Star, ChevronDown, ChevronUp, Copy, CheckCheck,
+  Loader2, AlertTriangle,
 } from "lucide-react";
 import { useDraftStore, type DraftListing, type Platform } from "@/stores/draft-store";
+import { useQueryClient } from "@tanstack/react-query";
 
 const PLATFORM_CFG: Record<Platform, { label: string; icon: typeof ShoppingBag; color: string; bg: string }> = {
   EBAY: { label: "eBay", icon: ShoppingBag, color: "#F5AF02", bg: "rgba(245,175,2,0.1)" },
@@ -65,6 +67,93 @@ function DraftCard({ draft, onApprove, onDismiss }: {
   const updateDraft = useDraftStore((s) => s.updateDraft);
   const [editTitle, setEditTitle] = useState(false);
   const [editPrice, setEditPrice] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const handleApprove = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const res = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: draft.productId,
+          platform: draft.platform,
+          seoTitle: draft.seoTitle,
+          seoDescription: draft.seoDescription,
+          price: draft.price,
+          condition: draft.condition,
+          categoryId: draft.categoryId,
+          itemSpecifics: draft.itemSpecifics,
+          aiScore: draft.aiScore,
+          aiTone: draft.aiTone,
+          status: "QUEUED",
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Failed to queue listing" }));
+        throw new Error(data.error || "Failed to save listing");
+      }
+
+      onApprove(draft.id);
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Error saving");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (draft.isApproved) {
+    return (
+      <div style={{
+        borderRadius: "20px", border: "1px solid rgba(197,231,86,0.3)",
+        background: "rgba(197,231,86,0.04)", padding: "20px",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        animation: "fadeIn 0.3s ease-out both",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{
+            width: "36px", height: "36px", borderRadius: "10px",
+            background: "rgba(197,231,86,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Check style={{ width: "18px", height: "18px", color: "#C5E756" }} />
+          </div>
+          <div>
+            <p style={{ fontSize: "14px", fontWeight: "700", color: "#FFFFFF", margin: 0 }}>
+              Listing Queued for {cfg.label}
+            </p>
+            <p style={{ fontSize: "12px", color: "#6C737F", margin: "2px 0 0" }}>
+              Saved to your database and added to the processing queue
+            </p>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <a href="/listings" style={{
+            display: "inline-flex", alignItems: "center", gap: "6px",
+            padding: "8px 14px", borderRadius: "10px",
+            background: "rgba(197,231,86,0.15)", color: "#C5E756",
+            fontSize: "12px", fontWeight: "700", textDecoration: "none",
+          }}>
+            View in Listings
+          </a>
+          <button
+            onClick={() => onDismiss(draft.id)}
+            style={{
+              padding: "8px 12px", borderRadius: "10px",
+              border: "1px solid rgba(255,255,255,0.08)", background: "transparent",
+              color: "#6C737F", cursor: "pointer", fontSize: "12px",
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -261,29 +350,53 @@ function DraftCard({ draft, onApprove, onDismiss }: {
           </div>
         )}
 
+        {/* Error message */}
+        {saveError && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: "8px",
+            padding: "10px 14px", borderRadius: "10px", marginBottom: "12px",
+            background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
+          }}>
+            <AlertTriangle style={{ width: "13px", height: "13px", color: "#EF4444", flexShrink: 0 }} />
+            <span style={{ fontSize: "12px", color: "#EF4444" }}>{saveError}</span>
+          </div>
+        )}
+
         {/* Actions */}
         <div style={{ display: "flex", gap: "10px" }}>
           <button
-            onClick={() => onApprove(draft.id)}
+            onClick={handleApprove}
+            disabled={isSaving}
             style={{
               flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-              padding: "13px", borderRadius: "14px", border: "none", cursor: "pointer",
+              padding: "13px", borderRadius: "14px", border: "none", cursor: isSaving ? "not-allowed" : "pointer",
               background: `linear-gradient(135deg, ${cfg.color} 0%, ${cfg.color}CC 100%)`,
               color: "#0A0D10", fontWeight: "700", fontSize: "14px", fontFamily: "inherit",
               transition: "transform 0.15s, box-shadow 0.15s",
               boxShadow: `0 4px 16px ${cfg.color}40`,
+              opacity: isSaving ? 0.7 : 1,
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 8px 24px ${cfg.color}50`; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 16px ${cfg.color}40`; }}
+            onMouseEnter={(e) => { if (!isSaving) { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 8px 24px ${cfg.color}50`; } }}
+            onMouseLeave={(e) => { if (!isSaving) { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 16px ${cfg.color}40`; } }}
           >
-            <Check style={{ width: "16px", height: "16px" }} />
-            Approve & Queue
+            {isSaving ? (
+              <>
+                <Loader2 style={{ width: "16px", height: "16px", animation: "spin 1s linear infinite" }} />
+                Saving to Queue…
+              </>
+            ) : (
+              <>
+                <Check style={{ width: "16px", height: "16px" }} />
+                Approve & Queue
+              </>
+            )}
           </button>
           <button
             onClick={() => onDismiss(draft.id)}
+            disabled={isSaving}
             style={{
               padding: "13px 18px", borderRadius: "14px",
-              border: "1px solid rgba(255,255,255,0.08)", cursor: "pointer",
+              border: "1px solid rgba(255,255,255,0.08)", cursor: isSaving ? "not-allowed" : "pointer",
               background: "rgba(255,255,255,0.03)", color: "#6C737F",
               fontSize: "13px", fontFamily: "inherit", transition: "all 0.15s",
             }}
@@ -324,7 +437,6 @@ export function DraftPanel() {
             draft={draft}
             onApprove={(id) => {
               approveDraft(id);
-              // TODO: POST to /api/jobs to queue the listing
             }}
             onDismiss={removeDraft}
           />

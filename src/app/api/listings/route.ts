@@ -14,15 +14,16 @@ export async function GET(req: NextRequest) {
   const platform = searchParams.get("platform") ?? undefined;
   const search = searchParams.get("search") ?? undefined;
 
-  const where: Record<string, unknown> = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {
     product: { userId: session.userId },
   };
 
-  if (status) {
+  if (status && status !== "ALL") {
     where.status = status;
   }
 
-  if (platform) {
+  if (platform && platform !== "ALL") {
     where.platform = platform;
   }
 
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
     itemSpecifics,
     aiScore,
     aiTone,
-    status,
+    status = "DRAFT",
   } = body as {
     productId?: string;
     platform?: string;
@@ -87,10 +88,10 @@ export async function POST(req: NextRequest) {
     status?: string;
   };
 
-  // Validate required fields
-  if (!productId || !platform || !seoTitle || !seoDescription || price === undefined) {
+  // Validate core fields
+  if (!platform || !seoTitle || !seoDescription || price === undefined) {
     return NextResponse.json(
-      { error: "Missing required fields: productId, platform, seoTitle, seoDescription, price" },
+      { error: "Missing required fields: platform, seoTitle, seoDescription, price" },
       { status: 400 }
     );
   }
@@ -102,33 +103,70 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Verify product exists and belongs to user
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-  });
+  let targetProductId = productId;
 
-  if (!product || product.userId !== session.userId) {
-    return NextResponse.json(
-      { error: "Product not found" },
-      { status: 404 }
-    );
+  // If a productId was provided, verify it exists and belongs to this user
+  if (targetProductId) {
+    const existingProduct = await prisma.product.findUnique({
+      where: { id: targetProductId },
+    });
+    if (!existingProduct || existingProduct.userId !== session.userId) {
+      targetProductId = undefined;
+    }
   }
 
+  // If no valid productId exists, auto-create a parent Product catalog entry
+  if (!targetProductId) {
+    const generatedUpc = "GEN-" + Date.now().toString().slice(-10);
+    const newProduct = await prisma.product.create({
+      data: {
+        userId: session.userId,
+        upc: generatedUpc,
+        title: seoTitle.slice(0, 100),
+        baseCost: price,
+        category: categoryId ?? "General",
+        images: [],
+      },
+    });
+    targetProductId = newProduct.id;
+  }
+
+  const normalizedStatus = typeof status === "string" ? status.toUpperCase() : "DRAFT";
+
+  // Create the listing
   const listing = await prisma.marketplaceListing.create({
     data: {
-      productId,
-      platform,
+      productId: targetProductId,
+      platform: platform.toUpperCase(),
       seoTitle,
       seoDescription,
       price,
       condition: condition ?? null,
       categoryId: categoryId ?? null,
-      itemSpecifics: itemSpecifics ?? undefined,
+      itemSpecifics: (itemSpecifics as object) ?? undefined,
       aiScore: aiScore ?? null,
       aiTone: aiTone ?? null,
-      status: status ?? "DRAFT",
+      status: normalizedStatus,
     },
   });
 
-  return NextResponse.json({ listing }, { status: 201 });
+  // If queued, create a background Job in the queue table
+  let job = null;
+  if (normalizedStatus === "QUEUED") {
+    job = await prisma.job.create({
+      data: {
+        userId: session.userId,
+        type: "LISTING_PUSH",
+        status: "PENDING",
+        payload: {
+          listingId: listing.id,
+          platform: listing.platform,
+          seoTitle: listing.seoTitle,
+          price: Number(listing.price),
+        },
+      },
+    });
+  }
+
+  return NextResponse.json({ listing, job }, { status: 201 });
 }

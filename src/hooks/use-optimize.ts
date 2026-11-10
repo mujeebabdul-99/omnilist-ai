@@ -69,6 +69,7 @@ export function useOptimize() {
         const result = await callOptimizeApi(payload);
         addDraft({
           id: nanoid(),
+          productId: payload.productId,
           platform: payload.platform,
           seoTitle: result.seoTitle,
           seoDescription: result.seoDescription,
