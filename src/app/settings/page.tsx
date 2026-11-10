@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Link as LinkIcon, Sparkles, User, Bell,
   Check, ExternalLink, AlertCircle,
-  Zap, CheckCircle, Loader2,
+  Zap, CheckCircle, Loader2, LogOut,
 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 /* ─── Types ─── */
 type ConnectionStatus = "connected" | "disconnected" | "error";
@@ -245,6 +246,7 @@ interface IntegrationsState {
 }
 
 export default function SettingsPage() {
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<"connections" | "ai" | "account" | "notifications">("connections");
   const [notifications, setNotifications] = useState({ listingSuccess: true, jobFailed: true, priceAlerts: false, weeklyReport: true });
   const [aiSettings, setAiSettings] = useState({ temperature: 0.4, tone: "professional", autoQueue: false });
@@ -578,28 +580,53 @@ export default function SettingsPage() {
                   background: "linear-gradient(135deg, #C5E756 0%, #82DBF7 100%)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: "22px", fontWeight: "800", color: "#0A0D10",
-                }}>A</div>
-                <div>
-                  <p style={{ fontSize: "16px", fontWeight: "700", color: "#FFFFFF", margin: "0 0 3px" }}>Abdul Mujeeb</p>
-                  <p style={{ fontSize: "13px", color: "#5A6270", margin: 0 }}>demo@omnilist.ai</p>
+                }}>
+                  {(user?.name?.[0] || user?.email?.[0] || "U").toUpperCase()}
                 </div>
-                <div style={{ marginLeft: "auto" }}>
+                <div>
+                  <p style={{ fontSize: "16px", fontWeight: "700", color: "#FFFFFF", margin: "0 0 3px" }}>
+                    {user?.name || "OmniList User"}
+                  </p>
+                  <p style={{ fontSize: "13px", color: "#5A6270", margin: 0 }}>
+                    {user?.email || "No email available"}
+                  </p>
+                </div>
+                <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "12px" }}>
                   <span style={{
                     background: "rgba(197,231,86,0.12)", border: "1px solid rgba(197,231,86,0.3)",
                     borderRadius: "20px", padding: "5px 12px",
                     fontSize: "11px", fontWeight: "700", color: "#C5E756",
-                  }}>FREE PLAN</span>
+                  }}>ACTIVE ACCOUNT</span>
+
+                  <button
+                    onClick={() => logout.mutate()}
+                    disabled={logout.isPending}
+                    style={{
+                      padding: "7px 14px", borderRadius: "10px",
+                      border: "1px solid rgba(239,68,68,0.3)",
+                      background: "rgba(239,68,68,0.1)",
+                      color: "#EF4444", fontSize: "12px", fontWeight: "600",
+                      cursor: logout.isPending ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                      display: "inline-flex", alignItems: "center", gap: "6px",
+                    }}
+                  >
+                    <LogOut style={{ width: "13px", height: "13px" }} />
+                    {logout.isPending ? "Signing out..." : "Sign Out"}
+                  </button>
                 </div>
               </div>
 
-              <SettingRow label="Full name" description="Used on listings and invoices">
-                <button style={{ fontSize: "12px", color: "#C5E756", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Edit</button>
+              <SettingRow label="Full name" description={user?.name || "Not set"}>
+                <span style={{ fontSize: "12px", color: "#6C737F" }}>Connected</span>
               </SettingRow>
-              <SettingRow label="Email address" description="demo@omnilist.ai">
-                <button style={{ fontSize: "12px", color: "#C5E756", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Change</button>
+              <SettingRow label="Email address" description={user?.email || "Not set"}>
+                <span style={{ fontSize: "12px", color: "#6C737F" }}>Verified</span>
               </SettingRow>
-              <SettingRow label="Password" description="Last changed: never">
-                <button style={{ fontSize: "12px", color: "#C5E756", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Update</button>
+              <SettingRow label="User ID" description={user?.id || "—"}>
+                <span style={{ fontSize: "11px", color: "#4A5160", fontFamily: "monospace" }}>
+                  {user?.id ? `${user.id.slice(0, 10)}...` : ""}
+                </span>
               </SettingRow>
             </div>
 

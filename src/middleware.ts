@@ -9,6 +9,17 @@ const PUBLIC_PATHS = ["/login", "/register", "/api/auth"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const token = req.cookies.get("omnilist_session")?.value;
+
+  // If already logged in, redirect away from login/register to dashboard
+  if ((pathname === "/login" || pathname === "/register") && token) {
+    try {
+      await jwtVerify(token, SECRET);
+      return NextResponse.redirect(new URL("/", req.url));
+    } catch {
+      // Token invalid or expired, continue to login/register
+    }
+  }
 
   // Allow public paths through
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
@@ -20,8 +31,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check session cookie
-  const token = req.cookies.get("omnilist_session")?.value;
+  // Check session cookie for protected routes
   if (!token) {
     // For API routes return 401, for pages redirect to login
     if (pathname.startsWith("/api/")) {

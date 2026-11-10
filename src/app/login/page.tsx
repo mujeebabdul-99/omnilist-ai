@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { Sparkles, Loader2, AlertTriangle, Eye, EyeOff } from "lucide-react";
+import { Sparkles, Loader2, AlertTriangle, Eye, EyeOff, CheckCircle } from "lucide-react";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -56,6 +56,18 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* Success */}
+        {login.isSuccess && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: "10px",
+            padding: "12px 16px", borderRadius: "12px",
+            background: "rgba(197,231,86,0.1)", border: "1px solid rgba(197,231,86,0.3)",
+          }}>
+            <CheckCircle style={{ width: "14px", height: "14px", color: "#C5E756", flexShrink: 0 }} />
+            <span style={{ fontSize: "13px", color: "#C5E756", fontWeight: "600" }}>Login successful! Loading dashboard...</span>
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -101,17 +113,17 @@ export default function LoginPage() {
           </div>
 
           <button
-            type="submit" disabled={login.isPending}
+            type="submit" disabled={login.isPending || login.isSuccess}
             style={{
               marginTop: "6px", padding: "13px",
-              background: login.isPending ? "rgba(197,231,86,0.5)" : "#C5E756",
-              border: "none", borderRadius: "12px", cursor: login.isPending ? "not-allowed" : "pointer",
+              background: (login.isPending || login.isSuccess) ? "rgba(197,231,86,0.5)" : "#C5E756",
+              border: "none", borderRadius: "12px", cursor: (login.isPending || login.isSuccess) ? "not-allowed" : "pointer",
               fontSize: "14px", fontWeight: "700", color: "#080B0E",
               display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
             }}
           >
-            {login.isPending && <Loader2 style={{ width: "15px", height: "15px", animation: "spin 1s linear infinite" }} />}
-            {login.isPending ? "Signing in..." : "Sign in"}
+            {(login.isPending || login.isSuccess) && <Loader2 style={{ width: "15px", height: "15px", animation: "spin 1s linear infinite" }} />}
+            {login.isSuccess ? "Redirecting..." : login.isPending ? "Signing in..." : "Sign in"}
           </button>
         </form>
 

@@ -305,3 +305,4 @@ During the Nov 5 meeting with Michal, several strategic points were agreed upon:
    - Having unified catalog management (eBay, Shopify, Amazon) prevents double-selling out of inventory when a product sells on one marketplace.
 3. **Sound Business Proposition for Clients:**
    - By operating cleanly within Pakistani banking guidelines (e-PRC, SBP FE Circular 04, Payoneer) or via a US LLC, OmniList provides clients and OEMs with a turnkey, fully compliant cross-border selling pipeline.
+

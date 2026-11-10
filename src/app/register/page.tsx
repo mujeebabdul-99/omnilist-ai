@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { Sparkles, Loader2, AlertTriangle, Eye, EyeOff } from "lucide-react";
+import { Sparkles, Loader2, AlertTriangle, Eye, EyeOff, CheckCircle } from "lucide-react";
 import Link from "next/link";
 
 export default function RegisterPage() {
@@ -54,6 +54,18 @@ export default function RegisterPage() {
           }}>
             <AlertTriangle style={{ width: "14px", height: "14px", color: "#EF4444", flexShrink: 0 }} />
             <span style={{ fontSize: "13px", color: "#EF4444" }}>{register.error.message}</span>
+          </div>
+        )}
+
+        {/* Success */}
+        {register.isSuccess && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: "10px",
+            padding: "12px 16px", borderRadius: "12px",
+            background: "rgba(197,231,86,0.1)", border: "1px solid rgba(197,231,86,0.3)",
+          }}>
+            <CheckCircle style={{ width: "14px", height: "14px", color: "#C5E756", flexShrink: 0 }} />
+            <span style={{ fontSize: "13px", color: "#C5E756", fontWeight: "600" }}>Account created! Loading dashboard...</span>
           </div>
         )}
 
@@ -118,17 +130,17 @@ export default function RegisterPage() {
           </div>
 
           <button
-            type="submit" disabled={register.isPending}
+            type="submit" disabled={register.isPending || register.isSuccess}
             style={{
               marginTop: "6px", padding: "13px",
-              background: register.isPending ? "rgba(197,231,86,0.5)" : "#C5E756",
-              border: "none", borderRadius: "12px", cursor: register.isPending ? "not-allowed" : "pointer",
+              background: (register.isPending || register.isSuccess) ? "rgba(197,231,86,0.5)" : "#C5E756",
+              border: "none", borderRadius: "12px", cursor: (register.isPending || register.isSuccess) ? "not-allowed" : "pointer",
               fontSize: "14px", fontWeight: "700", color: "#080B0E",
               display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
             }}
           >
-            {register.isPending && <Loader2 style={{ width: "15px", height: "15px", animation: "spin 1s linear infinite" }} />}
-            {register.isPending ? "Creating account..." : "Create account"}
+            {(register.isPending || register.isSuccess) && <Loader2 style={{ width: "15px", height: "15px", animation: "spin 1s linear infinite" }} />}
+            {register.isSuccess ? "Redirecting..." : register.isPending ? "Creating account..." : "Create account"}
           </button>
         </form>
 

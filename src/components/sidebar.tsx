@@ -11,7 +11,9 @@ import {
   Settings,
   ChevronsLeft,
   ChevronsRight,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutGrid },
@@ -23,6 +25,11 @@ const navigation = [
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { user, logout } = useAuth();
+
+  if (pathname === "/login" || pathname === "/register") {
+    return null;
+  }
 
   return (
     <aside
@@ -168,8 +175,8 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Settings at bottom */}
-      <div style={{ padding: "10px", borderTop: "1px solid #1C2028" }}>
+      {/* Settings & User Profile at bottom */}
+      <div style={{ padding: "10px", borderTop: "1px solid #1C2028", display: "flex", flexDirection: "column", gap: "6px" }}>
         <Link
           href="/settings"
           style={{
@@ -199,6 +206,67 @@ export function Sidebar() {
             <span style={{ whiteSpace: "nowrap" }}>Settings</span>
           )}
         </Link>
+
+        {user && !collapsed && (
+          <div style={{
+            marginTop: "4px", padding: "8px 10px", borderRadius: "10px",
+            background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+              <div style={{
+                width: "26px", height: "26px", borderRadius: "8px", flexShrink: 0,
+                background: "linear-gradient(135deg, #C5E756 0%, #82DBF7 100%)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: "11px", fontWeight: "800", color: "#0A0D10",
+              }}>
+                {(user.name?.[0] || user.email?.[0] || "U").toUpperCase()}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <p style={{
+                  margin: 0, fontSize: "12px", fontWeight: "600", color: "#FFFFFF",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                }}>
+                  {user.name || user.email.split("@")[0]}
+                </p>
+                <p style={{
+                  margin: 0, fontSize: "10px", color: "#5A6270",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                }}>
+                  {user.email}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => logout.mutate()}
+              disabled={logout.isPending}
+              title="Sign out"
+              style={{
+                background: "none", border: "none", cursor: logout.isPending ? "not-allowed" : "pointer",
+                padding: "4px", color: "#6C737F", display: "flex", alignItems: "center",
+                justifyContent: "center", borderRadius: "6px",
+              }}
+            >
+              <LogOut style={{ width: "14px", height: "14px" }} />
+            </button>
+          </div>
+        )}
+
+        {user && collapsed && (
+          <button
+            onClick={() => logout.mutate()}
+            disabled={logout.isPending}
+            title={`Signed in as ${user.email} (Click to sign out)`}
+            style={{
+              width: "100%", height: "36px", borderRadius: "10px", border: "none",
+              background: "rgba(255,255,255,0.03)", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "12px", fontWeight: "700", color: "#C5E756",
+            }}
+          >
+            {(user.name?.[0] || user.email?.[0] || "U").toUpperCase()}
+          </button>
+        )}
       </div>
     </aside>
   );

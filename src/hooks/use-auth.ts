@@ -40,7 +40,7 @@ export function useAuth() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auth-me"] });
-      router.push("/");
+      window.location.href = "/";
     },
   });
 
@@ -57,7 +57,7 @@ export function useAuth() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auth-me"] });
-      router.push("/");
+      window.location.href = "/";
     },
   });
 
@@ -67,7 +67,7 @@ export function useAuth() {
     },
     onSuccess: () => {
       queryClient.clear();
-      router.push("/login");
+      window.location.href = "/login";
     },
   });
 
