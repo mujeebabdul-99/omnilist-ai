@@ -106,8 +106,11 @@ open https://your‑domain.com/api/shopify/auth
    - **Income Tax** – file annually via the FBR portal; keep all sales invoices.
    - **Sales Tax (GST)** – applicable on local sales; export sales are generally exempt but still need documentation.
 3. **Foreign Currency & Payouts**
-   - Open a **foreign‑currency account** with a local bank or use **Payoneer / PayPal** (both supported in Pakistan for receiving international payouts).
-   - Comply with the **State Bank of Pakistan (SBP)** regulations on foreign remittances (provide the NTN and business registration when linking accounts).
+   - Use **Payoneer** (official partner for eBay Managed Payments in Pakistan) or a **US LLC with Mercury/Relay Bank**. *(Note: PayPal is not directly supported in Pakistan).*
+   - Comply with the **State Bank of Pakistan (SBP)** regulations on foreign remittances under **FE Circular No. 04 of 2020** (Form-E exemption up to $5,000 for B2C e-commerce courier exports).
+   - Generate **e-PRC (Electronic Proceeds Realization Certificate)** for FBR tax declaration.
+
+> 📖 **Deep Dive Document:** For the complete, exhaustive guide on Pakistani legal setup, FBR tax exemptions, SBP circulars, and Payoneer/US LLC models, see [PAKISTAN_SELLER_AND_LEGAL_GUIDE.md](file:///Users/User/Desktop/Abdul%20projects/OmniList/PAKISTAN_SELLER_AND_LEGAL_GUIDE.md).
 4. **Customs & Import Duties**
    - When importing goods for resale, declare the **HS Code** and pay applicable **customs duty** and **sales tax**.
    - Keep **customs clearance documents** for audit purposes.
