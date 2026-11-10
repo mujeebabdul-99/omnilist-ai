@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ id: user.id, email: user.email, name: user.name }, { status: 201 });
   } catch (err) {
     console.error("[register]", err);
-    return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
