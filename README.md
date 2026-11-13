@@ -180,6 +180,31 @@ model Job {
 
 ---
 
+## 📋 Upcoming Roadmap & Feature Tasks
+
+### 1. Ephemeral Real-Time Store Stats (Zero-Bloat Dashboard Metrics)
+- [ ] **Live Marketplace Aggregator:** Build `/api/analytics/live` endpoint to query connected marketplace APIs directly.
+- [ ] **Shopify Metrics:** Query Shopify Admin API for live product counts and recent order metrics.
+- [ ] **eBay Active Counts:** Query eBay Inventory API (`/sell/inventory/v1/inventory_item?limit=1`) to get live total counts without polling heavy datasets.
+- [ ] **Browser-Only Caching:** Store metrics in TanStack React Query (`staleTime: 10 * 60 * 1000`) on the client to completely avoid MySQL database bloat and stale metric logging.
+
+### 2. The "Cold-Start Importer" (One-Click Platform Sync)
+- [ ] **Catalog Extraction:** Pull existing active listings via eBay Inventory API (`GET /sell/inventory/v1/inventory_item`).
+- [ ] **Gemini Cleansing Pipeline:** Prompt engineering to strip eBay-specific jargon (auction terms, feedback requests, return disclaimers) and reformat into modern, high-converting DTC HTML with clean bullet points.
+- [ ] **Batch Processing & Job Queue:** Utilize the existing MySQL `Job` model (`COLD_START_SYNC`) to process catalogs in asynchronous chunks (5–10 items per batch) with live UI progress tracking to prevent HTTP gateway timeouts.
+- [ ] **Direct Shopify Push:** Map eBay-hosted images (`i.ebayimg.com`) directly into Shopify Admin API without intermediate server storage, instantly creating Shopify products and variants.
+- [ ] **Sandbox Validation:** Verify end-to-end sync using eBay Sandbox developer accounts before live commercial store migration.
+
+### 3. Dimensional Weight & Automated Shipping Margin Engine
+- [ ] **Volumetric Weight Formula:** Automatically calculate `(L x W x H in cm) / 5000` vs actual weight to determine true courier billing weight (DHL/FedEx).
+- [ ] **Net Profit Calculator:** Automatically factor in eBay commission (~13.25% + $0.30), Payoneer FX conversion (~1.5%), and international courier fees to suggest profitable target prices.
+
+### 4. Competitive Repricing & Team Workspace Access
+- [ ] **Competitor Pricing Radar:** Track Buy Box and lowest market prices via barcode matching.
+- [ ] **Multi-User Workspaces:** Organization-level permissions (`OWNER`, `MANAGER`, `LISTER`).
+
+---
+
 ## 📡 API Reference
 
 | Endpoint | Method | Auth | Description |
